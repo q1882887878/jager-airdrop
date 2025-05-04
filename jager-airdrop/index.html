@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>Jager 空投批量查询工具</title>
+    <style>
+        /* 基础样式 */
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+            background: #fff;
+        }
+
+        /* 主容器 */
+        .container {
+            position: relative;
+            background: #f5f5f5;
+            padding: 30px 20px 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            margin-top: 30px;
+        }
+
+        /* 标题区 */
+        h2 {
+            margin: 0 0 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #eee;
+        }
+
+        /* 作者标识 */
+        .author-badge {
+            position: absolute;
+            top: -20px;
+            right: 20px;
+            background: #4CAF50;
+            padding: 8px 15px;
+            border-radius: 25px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 3px 6px rgba(0,0,0,0.15);
+            transition: 0.3s;
+        }
+        .author-badge:hover {
+            transform: translateY(-2px);
+            background: #45a049;
+        }
+        .author-badge a {
+            display: flex;
+            align-items: center;
+            text-decoration: none;
+            color: white !important;
+            font-weight: 500;
+        }
+        .author-badge svg {
+            width: 20px;
+            height: 20px;
+            fill: white;
+        }
+
+        /* 输入输出区 */
+        textarea {
+            width: 100%;
+            height: 150px;
+            margin: 10px 0;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            resize: vertical;
+            font-family: monospace;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            padding: 12px 25px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: 0.3s;
+        }
+        button:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+
+        /* 结果展示 */
+        #results {
+            margin-top: 20px;
+        }
+        .result-card {
+            background: white;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+        }
+        .success { border-left: 4px solid #2ecc71; }
+        .warning { border-left: 4px solid #f39c12; }
+        .error { border-left: 4px solid #e74c3c; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 作者标识 -->
+        <div class="author-badge">
+            <a href="https://x.com/q188288" target="_blank" rel="noopener">
+                <svg viewBox="0 0 24 24">
+                    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                </svg>
+                @q188288
+            </a>
+        </div>
+
+        <h2>🔍 Jager 空投批量查询工具</h2>
+        <textarea id="addresses" placeholder="请输入EVM地址，每行一个..."></textarea>
+        <button onclick="startQuery()">🚀 立即查询</button>
+        <div id="results"></div>
+    </div>
+
+    <script>
+        // 强化请求配置
+        async function queryAirdrop(address) {
+            try {
+                const response = await fetch(
+                    `https://api.jager.meme/api/airdrop/queryAirdrop/${address}`,
+                    {
+                        headers: {
+                            'Referer': 'https://jager.meme/',
+                            'Origin': 'https://jager.meme'
+                        }
+                    }
+                );
+                return await response.json();
+            } catch (error) {
+                return { error: "请求失败" };
+            }
+        }
+
+        // 智能结果解析
+        function parseResult(address, data) {
+            if (data.error || !data.data) {
+                return `
+                <div class="result-card error">
+                    <b>❌ ${address}</b>
+                    <div style="color:#666;margin-top:8px">错误原因：${data.error || '服务器未返回有效数据'}</div>
+                </div>`;
+            }
+
+            const d = data.data;
+            let status = '';
+            
+            // 多条件状态判断
+            if (d.claimed) {
+                status = '✅ 已领取';
+            } else if (d.canAirdrop || parseInt(d.reward) > 0) {
+                status = '🟡 可领取';
+            } else {
+                status = '❌ 无资格';
+            }
+
+            return `
+            <div class="result-card ${status.includes('✅') ? 'success' : status.includes('🟡') ? 'warning' : 'error'}">
+                <div style="display:flex; justify-content:space-between">
+                    <div>
+                        <b>${status}</b>
+                        <div style="color:#666; font-size:0.9em">${address}</div>
+                    </div>
+                    <div style="text-align:right">
+                        ${d.reward ? `<div style="color:#2c3e50;font-weight:bold">${formatNumber(d.reward)}</div>` : ''}
+                        ${d.subCount ? `<div style="color:#666">邀请 ${d.subCount} 人</div>` : ''}
+                    </div>
+                </div>
+                ${d.bscPancakeTradingVol || d.solPumpfunTradingVol ? `
+                <div style="margin-top:12px; padding-top:12px; border-top:1px solid #eee">
+                    ${d.bscPancakeTradingVol ? `<div>BNB链交易量：${formatNumber(d.bscPancakeTradingVol)}</div>` : ''}
+                    ${d.solPumpfunTradingVol ? `<div>SOL链交易量：${formatNumber(d.solPumpfunTradingVol)}</div>` : ''}
+                </div>` : ''}
+            </div>`;
+        }
+
+        // 数值格式化
+        function formatNumber(num) {
+            return parseInt(num).toLocaleString() + ' JGR';
+        }
+
+        // 查询主流程
+        async function startQuery() {
+            const addresses = document.getElementById('addresses').value.split('\n');
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '';
+
+            for (const addr of addresses) {
+                const cleanAddr = addr.trim();
+                if (!cleanAddr) continue;
+
+                // 实时进度反馈
+                const progress = document.createElement('div');
+                progress.innerHTML = `<div style="color:#666; padding:8px">🔍 正在查询 ${cleanAddr}...</div>`;
+                resultsDiv.appendChild(progress);
+
+                // 执行查询
+                const data = await queryAirdrop(cleanAddr);
+                progress.remove();
+                resultsDiv.innerHTML += parseResult(cleanAddr, data);
+            }
+        }
+    </script>
+</body>
+</html>
